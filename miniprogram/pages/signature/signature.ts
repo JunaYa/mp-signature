@@ -10,7 +10,7 @@ let ctx: any = null
 let isTouching: boolean = false
 let backgroundColor = '#FEFEFE'
 let pen = { color: '#333333', width: 1 }
-let dpi = 1
+let dpr = 1
 
 // 时间轴，记录操作步骤数据
 let timeLine = []
@@ -64,17 +64,15 @@ Page({
    */
   initContext () {
     const { pixelRatio, windowWidth, windowHeight } = wx.getSystemInfoSync()
-    dpi = pixelRatio
+    dpr = pixelRatio
     console.log('pixelRatio', pixelRatio)
 
     const query = wx.createSelectorQuery()
     query.select('#canvas').node().exec((res) => {
       const canvas = res[0].node
       console.log('canvas --- ', canvas)
-      // canvas.width = windowWidth * dpi
-      // canvas.height = windowHeight * dpi
-      canvas.width = windowWidth
-      canvas.height = windowHeight
+      canvas.width = windowWidth * dpr
+      canvas.height = windowHeight * dpr
 
       ctx = canvas.getContext('2d')
       // ctx.scale(pixelRatio, pixelRatio)
@@ -93,26 +91,25 @@ Page({
 
   onTouchMove (event: any) : void {
     console.log('touch move --', event)
-    const {x, y} = event.touches[0]
-    // ctx.beginPath()
-    ctx.lineTo(x * dpi, y * dpi)
-    ctx.stroke()
+    this._strokeUpdate(event)
   },
 
   onTouchEnd (event: any) : void {
     console.log('touch end --', event)
     isTouching = false
-    ctx.closePath()
+    this._strokeEnd(event)
   },
 
   onTouchCancel (event: any) : void {
     console.log('touch cancel', event)
     isTouching = false
+    this._strokeEnd(event)
   },
 
   onError (event: any) {
     console.log('canvas error', event)
     isTouching = false
+    this._strokeEnd(event)
   },
 
   _strokeBegin (event?: any) : void {
@@ -121,23 +118,28 @@ Page({
       points: [],
     };
 
-    timeLine.push(newPointGroup);
     this._reset();
-    this._strokeUpdate(event);
+    timeLine.push(newPointGroup);
+    const {x, y} = event.touches[0]
+    ctx.beginPath()
+    this._moveTo(x, y)
+    this._lineTo(x, y)
+    this._strokeUpdate(event)
   },
 
   _strokeUpdate (event: any) : void {
-    if (timeLine.length === 0) {
-      this._strokeUpdate(event)
-      return
-    }
+    // if (timeLine.length === 0) {
+    //   this._strokeUpdate(event)
+    //   return
+    // }
 
     const {x, y} = event.touches[0]
-    ctx.lineTo(x, y)
+    this._lineTo(x, y)
+    ctx.stroke()
   },
 
   _strokeEnd (event: any) : void {
-
+    ctx.closePath()
   },
 
   _createPoint(x: number, y: number): Point {
@@ -151,6 +153,14 @@ Page({
     ctx.closePath();
     ctx.fillStyle = '#333333';
     ctx.fill();
+  },
+
+  _lineTo (x: number, y: number) : void {
+    ctx.lineTo(x * dpr, y * dpr)
+  },
+
+  _moveTo (x: number, y: number) : void {
+    ctx.moveTo(x * dpr, y * dpr)
   },
 
   _reset () : void {
