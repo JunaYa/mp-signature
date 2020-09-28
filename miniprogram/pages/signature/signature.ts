@@ -8,12 +8,16 @@ import { throttle } from '../../lib/throttle'
 let ctx: any = null
 // touch drawing
 let isTouching: boolean = false
+let isEmpty: boolean = false
+let minDistance: number = 0
+let dotSize: number = 1
 let backgroundColor = '#FEFEFE'
-let pen = { color: '#333333', width: 1 }
+let pen = { color: '#333333', width: 1, maxWidth: 10 }
 let dpr = 1
+let _lastPoints: Point[] = []
 
 // 时间轴，记录操作步骤数据
-let timeLine = []
+let timeLine: any[] = []
 
 Page({
 
@@ -134,12 +138,33 @@ Page({
     // }
 
     const {x, y} = event.touches[0]
-    this._lineTo(x, y)
-    ctx.stroke()
+    // this._lineTo(x, y)
+    // ctx.stroke()
+
+    const point = this._createPoint(x, y)
+    const lastPointGroup = timeLine[timeLine.length - 1]
+    const lastPoints = lastPointGroup.points
+    const lastPoint = lastPoints.length > 0 && lastPoints[lastPoints.length - 1]
+    const isLastPointTooClose = lastPoint ? point.distanceTo(lastPoint) <= minDistance : false
+    pen.color = lastPointGroup.color
+
+    if (!lastPoint || !(lastPoint && isLastPointTooClose)) {
+      const curve = this._addPoint(point)
+      if (!lastPoint) {
+        this._drawDot(point)
+      } else if (curve) {
+        this._drawCurve(curve)
+      }
+    }
+
   },
 
   _strokeEnd (event: any) : void {
     ctx.closePath()
+  },
+
+  _calculateCurveWidths (point1: Point, point2: Point) : number {
+    return 0
   },
 
   _createPoint(x: number, y: number): Point {
@@ -147,11 +172,79 @@ Page({
     return new Point(x - left, y - top, new Date().getTime());
   },
 
-  _drawDot () : void {
+  _addPoint(point: Point) : Bezier | null {
+    _lastPoints.push(point);
+
+    if (_lastPoints.length > 2) {
+      // To reduce the initial lag make it work with 3 points
+      // by copying the first point to the beginning.
+      if (_lastPoints.length === 3) {
+        _lastPoints.unshift(_lastPoints[0]);
+      }
+
+      // _points array will always have 4 points here.
+      const widths = this._calculateCurveWidths(_lastPoints[1], _lastPoints[2]);
+      const curve = Bezier.fromPoints(_lastPoints, widths);
+
+      // Remove the first element from the list, so that there are no more than 4 points at any time.
+      _lastPoints.shift();
+
+      return curve;
+    }
+
+    return null;
+  },
+
+  _drawDot (point: BasicPoint) : void {
     ctx.beginPath();
+    this._drawCurveSegment(point.x, point.y, pen.width);
+    ctx.closePath();
+    ctx.fillStyle = pen.color;
+    ctx.fill();
+  },
+
+  _drawCurveSegment (x: number, y:number, width: number) {
+    ctx.moveTo(x, y)
+    ctx.arc(x, y, width, 0, 2 * Math.PI, false)
+    isEmpty = false
+  },
+
+  _drawCurve(curve: Bezier): void {
+    const widthDelta = curve.endWidth - curve.startWidth
+    // '2' is just an arbitrary number here. If only lenght is used, then
+    // there are gaps between curve segments :/
+    const drawSteps = Math.floor(curve.length()) * 2
+
+    ctx.beginPath()
+    ctx.fillStyle = pen.color
+
+    for (let i = 0; i < drawSteps; i += 1) {
+      // Calculate the Bezier (x, y) coordinate for this step.
+      const t = i / drawSteps
+      const tt = t * t
+      const ttt = tt * t
+      const u = 1 - t
+      const uu = u * u
+      const uuu = uu * u
+
+      let x = uuu * curve.startPoint.x
+      x += 3 * uu * t * curve.control1.x
+      x += 3 * u * tt * curve.control2.x
+      x += ttt * curve.endPoint.x
+
+      let y = uuu * curve.startPoint.y
+      y += 3 * uu * t * curve.control1.y
+      y += 3 * u * tt * curve.control2.y
+      y += ttt * curve.endPoint.y
+
+      const width = Math.min(
+        curve.startWidth + ttt * widthDelta,
+        pen.maxWidth,
+      );
+      this._drawCurveSegment(x, y, width);
+    }
 
     ctx.closePath();
-    ctx.fillStyle = '#333333';
     ctx.fill();
   },
 
