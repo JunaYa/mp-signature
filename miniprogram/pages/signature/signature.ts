@@ -15,6 +15,11 @@ let backgroundColor = '#FEFEFE'
 let pen = { color: '#333333', width: 1, maxWidth: 10 }
 let dpr = 1
 let _lastPoints: Point[] = []
+let velocityFilterWeight: number
+let _lastVelocity: number
+let maxWidth: number
+let minWidth: number
+let _lastWidth: number
 
 // 时间轴，记录操作步骤数据
 let timeLine: any[] = []
@@ -163,8 +168,20 @@ Page({
     ctx.closePath()
   },
 
-  _calculateCurveWidths (point1: Point, point2: Point) : number {
-    return 0
+  _calculateCurveWidths (startPoint: Point, endPoint: Point) : { start: number; end: number } {
+    const velocity = velocityFilterWeight * endPoint.velocityFrom(startPoint) + (1 - velocityFilterWeight) * _lastVelocity
+    const newWidth = this._strokeWidth(velocity)
+    const widths = {
+      start: _lastWidth,
+      end: newWidth,
+    }
+    _lastVelocity = velocity
+    _lastWidth = newWidth
+    return widths
+  },
+
+  _strokeWidth (velocity: number) {
+    return Math.max(maxWidth / (velocity + 1), minWidth);
   },
 
   _createPoint(x: number, y: number): Point {
