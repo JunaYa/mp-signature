@@ -8,18 +8,19 @@ import { throttle } from '../../lib/throttle'
 let ctx: any = null
 // touch drawing
 let isTouching: boolean = false
-let isEmpty: boolean = false
+let _isEmpty: boolean = false
 let minDistance: number = 0
-let dotSize: number = 1
-let backgroundColor = '#FEFEFE'
-let pen = { color: '#333333', width: 1, maxWidth: 10 }
+let backgroundColor = '#4f736d'
+let pen = { color: '#333333', width: 1, _maxWidth: 10 }
 let dpr = 1
 let _lastPoints: Point[] = []
-let velocityFilterWeight: number
+let velocityFilterWeight: number = 0.7
 let _lastVelocity: number
-let maxWidth: number
-let minWidth: number
 let _lastWidth: number
+let _maxWidth: number = 2.5
+let _minWidth: number = 0.5
+let _dotSize: number = (_minWidth + _maxWidth) / 2
+let _strokeMoveUpdate: any = null
 
 // 时间轴，记录操作步骤数据
 let timeLine: any[] = []
@@ -80,8 +81,10 @@ Page({
     query.select('#canvas').node().exec((res) => {
       const canvas = res[0].node
       console.log('canvas --- ', canvas)
-      canvas.width = windowWidth * dpr
-      canvas.height = windowHeight * dpr
+      // canvas.width = windowWidth * dpr
+      // canvas.height = windowHeight * dpr
+      canvas.width = windowWidth
+      canvas.height = windowHeight
 
       ctx = canvas.getContext('2d')
       // ctx.scale(pixelRatio, pixelRatio)
@@ -99,7 +102,7 @@ Page({
   },
 
   onTouchMove (event: any) : void {
-    console.log('touch move --', event)
+    // console.log('touch move --', event)
     this._strokeUpdate(event)
   },
 
@@ -141,10 +144,8 @@ Page({
     //   this._strokeUpdate(event)
     //   return
     // }
-
+    console.log('---------', event.touches[0])
     const {x, y} = event.touches[0]
-    // this._lineTo(x, y)
-    // ctx.stroke()
 
     const point = this._createPoint(x, y)
     const lastPointGroup = timeLine[timeLine.length - 1]
@@ -161,11 +162,11 @@ Page({
         this._drawCurve(curve)
       }
     }
-
   },
 
   _strokeEnd (event: any) : void {
-    ctx.closePath()
+    console.log('end +++++++ ', event)
+    // this._strokeUpdate(event)
   },
 
   _calculateCurveWidths (startPoint: Point, endPoint: Point) : { start: number; end: number } {
@@ -181,11 +182,13 @@ Page({
   },
 
   _strokeWidth (velocity: number) {
-    return Math.max(maxWidth / (velocity + 1), minWidth);
+    return Math.max(_maxWidth / (velocity + 1), _minWidth);
   },
 
   _createPoint(x: number, y: number): Point {
-    const {left, top} = ctx.canvas;
+    // const {left, top} = ctx.canvas;
+    const left = 0;
+    const top = 0;
     return new Point(x - left, y - top, new Date().getTime());
   },
 
@@ -213,8 +216,10 @@ Page({
   },
 
   _drawDot (point: BasicPoint) : void {
+    console.log('_drawDot ---- ', point)
     ctx.beginPath();
-    this._drawCurveSegment(point.x, point.y, pen.width);
+    const width = _dotSize
+    this._drawCurveSegment(point.x, point.y, width);
     ctx.closePath();
     ctx.fillStyle = pen.color;
     ctx.fill();
@@ -223,10 +228,11 @@ Page({
   _drawCurveSegment (x: number, y:number, width: number) {
     ctx.moveTo(x, y)
     ctx.arc(x, y, width, 0, 2 * Math.PI, false)
-    isEmpty = false
+    _isEmpty = false
   },
 
   _drawCurve(curve: Bezier): void {
+    console.log('_drawCurve ---- ', curve)
     const widthDelta = curve.endWidth - curve.startWidth
     // '2' is just an arbitrary number here. If only lenght is used, then
     // there are gaps between curve segments :/
@@ -256,7 +262,7 @@ Page({
 
       const width = Math.min(
         curve.startWidth + ttt * widthDelta,
-        pen.maxWidth,
+        pen._maxWidth,
       );
       this._drawCurveSegment(x, y, width);
     }
@@ -276,7 +282,7 @@ Page({
   _reset () : void {
     // this._lastPoints = []
     // this._lastVelocity = 0
-    // this._lastWidth = (this.minWidth + this.maxWidth) / 2
+    // this._lastWidth = (this._minWidth + this._maxWidth) / 2
     ctx.fillStyle = pen.color
   },
 
@@ -286,6 +292,7 @@ Page({
     ctx.fillRect(16, 16, ctx.canvas.width - 32, ctx.canvas.height - 32)
     timeLine = []
     this._reset()
+    _isEmpty = true
   },
 
 })
