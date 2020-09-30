@@ -4,26 +4,33 @@ import { BasicPoint, Point } from '../../lib/point'
 import { throttle } from '../../lib/throttle'
 
 
+export interface PointGroup {
+  color: string;
+  points: BasicPoint[];
+}
+
 // canvas context
 let ctx: any = null
 // touch drawing
 let isTouching: boolean = false
 let _isEmpty: boolean = false
-let minDistance: number = 0
+let minDistance: number = 5
 let backgroundColor = '#4f736d'
 let pen = { color: '#333333', width: 1, _maxWidth: 10 }
 let dpr = 1
-let _lastPoints: Point[] = []
-let velocityFilterWeight: number = 0.7
-let _lastVelocity: number
-let _lastWidth: number
+
 let _maxWidth: number = 2.5
 let _minWidth: number = 0.5
 let _dotSize: number = (_minWidth + _maxWidth) / 2
+
+let _lastPoints: Point[] = []
+let velocityFilterWeight: number = 0.7
+let _lastVelocity: number = 0
+let _lastWidth: number = (_minWidth + _maxWidth) / 2
 let _strokeMoveUpdate: any = null
 
 // 时间轴，记录操作步骤数据
-let timeLine: any[] = []
+let timeLine: PointGroup[] = []
 
 Page({
 
@@ -46,6 +53,7 @@ Page({
    */
   onReady: function () {
     this.initContext()
+    _strokeMoveUpdate = throttle(this._strokeUpdate, 16)
   },
 
   /**
@@ -129,34 +137,29 @@ Page({
       color: pen.color,
       points: [],
     };
-
-    this._reset();
     timeLine.push(newPointGroup);
-    const {x, y} = event.touches[0]
-    ctx.beginPath()
-    this._moveTo(x, y)
-    this._lineTo(x, y)
+    this._reset();
     this._strokeUpdate(event)
   },
 
   _strokeUpdate (event: any) : void {
-    // if (timeLine.length === 0) {
-    //   this._strokeUpdate(event)
-    //   return
-    // }
-    console.log('---------', event.touches[0])
+    if (timeLine.length === 0) {
+      this._strokeBegin(event)
+      return
+    }
     const {x, y} = event.touches[0]
-
+    console.log('timeLine', timeLine)
     const point = this._createPoint(x, y)
     const lastPointGroup = timeLine[timeLine.length - 1]
     const lastPoints = lastPointGroup.points
     const lastPoint = lastPoints.length > 0 && lastPoints[lastPoints.length - 1]
     const isLastPointTooClose = lastPoint ? point.distanceTo(lastPoint) <= minDistance : false
     pen.color = lastPointGroup.color
-
+    console.log('lastPoint', lastPoint)
+    console.log('isLastPointTooClose', isLastPointTooClose)
     if (!lastPoint || !(lastPoint && isLastPointTooClose)) {
       const curve = this._addPoint(point)
-      if (!lastPoint) {
+      if (!curve) {
         this._drawDot(point)
       } else if (curve) {
         this._drawCurve(curve)
@@ -194,7 +197,6 @@ Page({
 
   _addPoint(point: Point) : Bezier | null {
     _lastPoints.push(point);
-
     if (_lastPoints.length > 2) {
       // To reduce the initial lag make it work with 3 points
       // by copying the first point to the beginning.
@@ -216,7 +218,6 @@ Page({
   },
 
   _drawDot (point: BasicPoint) : void {
-    console.log('_drawDot ---- ', point)
     ctx.beginPath();
     const width = _dotSize
     this._drawCurveSegment(point.x, point.y, width);
@@ -280,9 +281,9 @@ Page({
   },
 
   _reset () : void {
-    // this._lastPoints = []
-    // this._lastVelocity = 0
-    // this._lastWidth = (this._minWidth + this._maxWidth) / 2
+    _lastPoints = []
+    _lastVelocity = 0
+    _lastWidth = (_minWidth + _maxWidth) / 2
     ctx.fillStyle = pen.color
   },
 
