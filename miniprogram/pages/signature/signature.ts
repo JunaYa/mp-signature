@@ -111,7 +111,7 @@ Page({
 
   onTouchMove (event: any) : void {
     // console.log('touch move --', event)
-    this._strokeUpdate(event)
+    _strokeMoveUpdate(event)
   },
 
   onTouchEnd (event: any) : void {
@@ -133,13 +133,14 @@ Page({
   },
 
   _strokeBegin (event?: any) : void {
+    console.log('_strokeBegin ++++++++')
     const newPointGroup = {
       color: pen.color,
       points: [],
     };
     timeLine.push(newPointGroup);
     this._reset();
-    this._strokeUpdate(event)
+    _strokeMoveUpdate(event)
   },
 
   _strokeUpdate (event: any) : void {
@@ -147,19 +148,16 @@ Page({
       this._strokeBegin(event)
       return
     }
-    const {x, y} = event.touches[0]
-    console.log('timeLine', timeLine)
+    const {x, y} = event.changedTouches[0]
     const point = this._createPoint(x, y)
     const lastPointGroup = timeLine[timeLine.length - 1]
     const lastPoints = lastPointGroup.points
     const lastPoint = lastPoints.length > 0 && lastPoints[lastPoints.length - 1]
     const isLastPointTooClose = lastPoint ? point.distanceTo(lastPoint) <= minDistance : false
     pen.color = lastPointGroup.color
-    console.log('lastPoint', lastPoint)
-    console.log('isLastPointTooClose', isLastPointTooClose)
     if (!lastPoint || !(lastPoint && isLastPointTooClose)) {
       const curve = this._addPoint(point)
-      if (!curve) {
+      if (!lastPoints) {
         this._drawDot(point)
       } else if (curve) {
         this._drawCurve(curve)
@@ -169,7 +167,7 @@ Page({
 
   _strokeEnd (event: any) : void {
     console.log('end +++++++ ', event)
-    // this._strokeUpdate(event)
+    _strokeMoveUpdate(event)
   },
 
   _calculateCurveWidths (startPoint: Point, endPoint: Point) : { start: number; end: number } {
@@ -196,6 +194,10 @@ Page({
   },
 
   _addPoint(point: Point) : Bezier | null {
+    if (timeLine.length > 1) {
+      console.log('---------- timeLine ------')
+      timeLine[timeLine.length - 1].points.push(point)
+    }
     _lastPoints.push(point);
     if (_lastPoints.length > 2) {
       // To reduce the initial lag make it work with 3 points
